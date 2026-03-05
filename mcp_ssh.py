@@ -75,7 +75,38 @@ def _run_cmd(client: paramiko.SSHClient, cmd: str, timeout: int = 20) -> Dict[st
         "stderr": stderr.read().decode(errors="replace").strip(),
     }
 
-# ---- MCP Tool ----
+# ---- MCP Tool Boilerplate Helper ----
+
+def run_ssh_command(
+    host: str,
+    user: str,
+    cmd_str: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+    success_exit_codes: tuple = (0,)
+) -> Dict[str, Any]:
+    """Helper to run an SSH command and capture generalized return payload/errors."""
+    collected_at = datetime.now(timezone.utc).isoformat()
+    try:
+        with ssh_session(
+            host, user, port, password, key_path, timeout, accept_new_hostkey
+        ) as client:
+            result = _run_cmd(client, cmd_str, timeout=timeout)
+        return {
+            "ok": result["exit_code"] in success_exit_codes,
+            "host": host,
+            "collected_at_utc": collected_at,
+            "data": result,
+        }
+    except paramiko.AuthenticationException:
+        return {"ok": False, "error": "Authentication failed."}
+    except Exception as e:
+        return {"ok": False, "error": f"Error: {str(e)}"}
+
+# ---- MCP Tools ----
 
 @mcp.tool()
 def get_disk_free(
@@ -90,22 +121,7 @@ def get_disk_free(
     """
     Collects disk usage (df -h) from a remote Linux host via SSH.
     """
-    collected_at = datetime.now(timezone.utc).isoformat()
-    try:
-        with ssh_session(
-            host, user, port, password, key_path, timeout, accept_new_hostkey
-        ) as client:
-            result = _run_cmd(client, "df -h")
-        return {
-            "ok": (result["exit_code"] == 0),
-            "host": host,
-            "collected_at_utc": collected_at,
-            "data": result,
-        }
-    except paramiko.AuthenticationException:
-        return {"ok": False, "error": "Authentication failed."}
-    except Exception as e:
-        return {"ok": False, "error": f"Error: {str(e)}"}
+    return run_ssh_command(host, user, "df -h", port, password, key_path, timeout, accept_new_hostkey)
 
 @mcp.tool()
 def get_disk_usage(
@@ -122,32 +138,19 @@ def get_disk_usage(
     Collects disk usage for a specific path from a remote Linux host via SSH.
     Returns the top 20 largest files/folders in the specified directory.
     """
-    collected_at = datetime.now(timezone.utc).isoformat()
-    try:
-        with ssh_session(
-            host, user, port, password, key_path, timeout, accept_new_hostkey
-        ) as client:
-            # Hide permission denied errors, sort descending, get top 20
-            # Ensure path is properly handled
-            cmd = f"du -sh {path}/* 2>/dev/null | sort -rh | head -n 20"
-            result = _run_cmd(client, cmd, timeout=timeout)
-        return {
-            "ok": (result["exit_code"] in [0, 1]), # du may return 1 on partial permission denied
-            "host": host,
-            "path": path,
-            "collected_at_utc": collected_at,
-            "data": result,
-        }
-    except paramiko.AuthenticationException:
-        return {"ok": False, "error": "Authentication failed."}
-    except Exception as e:
-        return {"ok": False, "error": f"Error: {str(e)}"}
+    cmd = f"du -sh {path}/* 2>/dev/null | sort -rh | head -n 20"
+    result = run_ssh_command(
+        host, user, cmd, port, password, key_path, timeout, accept_new_hostkey, 
+        success_exit_codes=(0, 1) # du may return 1 on partial permission denied
+    )
+    if result["ok"]:
+        result["path"] = path
+    return result
 
 @mcp.tool()
 def get_dmesg(
     host: str,
     user: str,
-    path: str = "/",
     port: int = 22,
     password: Optional[str] = None,
     key_path: Optional[str] = None,
@@ -155,26 +158,9 @@ def get_dmesg(
     accept_new_hostkey: bool = False,
 ) -> Dict[str, Any]:
     """
-    Collects disk usage for a specific path from a remote Linux host via SSH.
-    Returns the top 20 largest files/folders in the specified directory.
+    Collects dmesg log from a remote Linux host via SSH
     """
-    collected_at = datetime.now(timezone.utc).isoformat()
-    try:
-        with ssh_session(
-            host, user, port, password, key_path, timeout, accept_new_hostkey
-        ) as client:
-            cmd = f"dmesg"
-            result = _run_cmd(client, cmd, timeout=timeout)
-        return {
-            "ok": result["exit_code"]==0,
-            "host": host,
-            "collected_at_utc": collected_at,
-            "data": result,
-        }
-    except paramiko.AuthenticationException:
-        return {"ok": False, "error": "Authentication failed."}
-    except Exception as e:
-        return {"ok": False, "error": f"Error: {str(e)}"}
+    return run_ssh_command(host, user, "dmesg", port, password, key_path, timeout, accept_new_hostkey)
 # ---- Main Entry Point ----
 
 if __name__ == "__main__":
