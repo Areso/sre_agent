@@ -161,6 +161,71 @@ def get_dmesg(
     Collects dmesg log from a remote Linux host via SSH
     """
     return run_ssh_command(host, user, "dmesg", port, password, key_path, timeout, accept_new_hostkey)
+
+@mcp.tool()
+def get_uptime(
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+) -> Dict[str, Any]:
+    """
+    Collects uptime from a remote Linux host via SSH
+    """
+    return run_ssh_command(host, user, "uptime", port, password, key_path, timeout, accept_new_hostkey)
+
+@mcp.tool()
+def get_current_datetime(
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+) -> Dict[str, Any]:
+    """
+    Collects current datetime from a remote Linux host via SSH
+    """
+    return run_ssh_command(host, user, "date", port, password, key_path, timeout, accept_new_hostkey)
+
+@mcp.tool()
+def get_distroname_version(
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+) -> Dict[str, Any]:
+    """
+    Collects distr details from os-release from a remote Linux  host via SSH
+    """
+    return run_ssh_command(host, user, "date", port, password, key_path, timeout, accept_new_hostkey)
+
+@mcp.tool()
+def get_top(
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+) -> Dict[str, Any]:
+    """
+    Collects top's snapshot from a remote Linux host via SSH
+    """
+    # top -b -n 1
+    # top -b -n 1 -c
+    # top -b -d 1 -n 1
+    # top -b -n 1 -u youruser
+    cmd = "top -b -n 1 -c"
+    return run_ssh_command(host, user, cmd, port, password, key_path, timeout, accept_new_hostkey)
 # ---- Main Entry Point ----
 
 if __name__ == "__main__":
