@@ -203,9 +203,9 @@ def get_distroname_version(
     accept_new_hostkey: bool = False,
 ) -> Dict[str, Any]:
     """
-    Collects distr details from os-release from a remote Linux  host via SSH
+    Collects distr details from os-release from a remote Linux host via SSH
     """
-    return run_ssh_command(host, user, "date", port, password, key_path, timeout, accept_new_hostkey)
+    return run_ssh_command(host, user, "cat /etc/os-release", port, password, key_path, timeout, accept_new_hostkey)
 
 @mcp.tool()
 def get_top(
