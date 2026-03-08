@@ -11,9 +11,8 @@ python agent_direct.py \
 
 ## ideas for mcp
 1. add htop (if exists)
-2. add var/log
+2. add var/log (cat?)
 3. add ps , docker ps
-4. add systemctl
 5. a calculator (bc, bc -l)
 6. 
 ```
@@ -21,3 +20,5 @@ python agent_direct.py \
 For get_top, using top -b -n 1 -c is a solid choice to get a single text snapshot. However, be aware that the first iteration of top often shows inaccurate CPU usage percentages (it shows the average since boot, not the current snapshot). A common trick in scripting is to run top -b -n 2 -d 0.5 and only capture the second iteration, though that's harder to parse. Alternatively, running ps aux --sort=-%cpu | head -n 20 is sometimes much more reliable and easier for the LLM to read than the complex visual formatting of top
 ```
 7. re-do to one command ?
+
+using the available tools, check whether the remote server fr1.areso.pro is Okay or not. use "root" user and /Users/areso/.ssh/id_rsa_private key to login to remote

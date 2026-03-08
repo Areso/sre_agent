@@ -16,7 +16,6 @@ from fastmcp import FastMCP
 # Initialize MCP Server
 mcp = FastMCP("SRE Collector")
 
-# ---- Configuration Handling ----
 
 def load_config():
     config = configparser.ConfigParser()
@@ -106,7 +105,7 @@ def run_ssh_command(
     except Exception as e:
         return {"ok": False, "error": f"Error: {str(e)}"}
 
-# ---- MCP Tools ----
+## == START OF TOOLS == ##
 
 @mcp.tool()
 def get_disk_free(
@@ -208,6 +207,72 @@ def get_distroname_version(
     return run_ssh_command(host, user, "cat /etc/os-release", port, password, key_path, timeout, accept_new_hostkey)
 
 @mcp.tool()
+def get_systemd_list_all(
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+) -> Dict[str, Any]:
+    """
+    Lists all systemd units. USE THIS TOOL to check for running, stopped, or FAILED daemon/service/unit.
+    """
+    cmd = "systemctl list-units --all --no-pager"
+    return run_ssh_command(host, user, cmd, port, password, key_path, timeout, accept_new_hostkey)
+
+@mcp.tool()
+def get_systemd_list_failed(
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+) -> Dict[str, Any]:
+    """
+    Lists failed systemd units. USE THIS TOOL to check for FAILED daemons/services/units.
+    """
+    cmd = "systemctl list-units --state=failed --no-pager"
+    return run_ssh_command(host, user, cmd, port, password, key_path, timeout, accept_new_hostkey)
+
+
+@mcp.tool()
+def get_systemd_list_timers(
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+) -> Dict[str, Any]:
+    """
+    Lists all systemd timers. USE THIS TOOL to check for timers.
+    """
+    cmd = "systemctl list-timers --state=failed --no-pager"
+    return run_ssh_command(host, user, cmd, port, password, key_path, timeout, accept_new_hostkey)
+
+@mcp.tool()
+def get_systemd_status(
+    daemon: str,
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 20,
+    accept_new_hostkey: bool = False,
+) -> Dict[str, Any]:
+    """
+    Gets the detailed status, logs, and error messages for a SPECIFIC systemd daemon/service/unit.
+    """
+    cmd = f"systemctl status {daemon}"
+    return run_ssh_command(host, user, cmd, port, password, key_path, timeout, accept_new_hostkey)
+
+@mcp.tool()
 def get_top(
     host: str,
     user: str,
@@ -226,7 +291,8 @@ def get_top(
     # top -b -n 1 -u youruser
     cmd = "top -b -n 1 -c"
     return run_ssh_command(host, user, cmd, port, password, key_path, timeout, accept_new_hostkey)
-# ---- Main Entry Point ----
+
+## == END OF TOOLS == ##
 
 if __name__ == "__main__":
     cfg = load_config()
