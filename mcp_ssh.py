@@ -8,6 +8,8 @@ import os
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, ContextManager
 from contextlib import contextmanager
+import threading
+import time
 
 import paramiko
 #from mcp.server.fastmcp import FastMCP
@@ -25,13 +27,44 @@ def load_config():
         "host": "127.0.0.1",
         "port": "8000"
     }
-    if os.path.exists("config.ini"):
-        config.read("config.ini")
+    config_file_name = "mcp_config.ini"
+    if os.path.exists(config_file_name):
+        config.read(config_file_name)
         if "server" in config:
             settings.update(dict(config.items("server")))     
     return settings
 
 # ---- SSH helpers ----
+SSH_POOL: Dict[str, Dict[str, Any]] = {}
+pool_lock = threading.Lock()
+IDLE_TIMEOUT_SECONDS = 300
+
+def _cleanup_idle_connections():
+    """Background janitor thread to close stale SSH connections."""
+    while True:
+        time.sleep(60) # Wake up and check every 60 seconds
+        current_time = time.time()
+        
+        with pool_lock:
+            keys_to_delete = []
+            for pool_key, data in SSH_POOL.items():
+                if current_time - data["last_used"] > IDLE_TIMEOUT_SECONDS:
+                    # Connection has been idle too long, close it
+                    try:
+                        data["client"].close()
+                    except Exception:
+                        pass # Ignore errors if it's already dead
+                    keys_to_delete.append(pool_key)
+            
+            # Remove closed connections from the pool
+            for key in keys_to_delete:
+                del SSH_POOL[key]
+                print(f"[SSH Pool Janitor] Closed idle connection: {key}")
+
+janitor_thread = threading.Thread(target=_cleanup_idle_connections, daemon=True)
+janitor_thread.start()
+
+
 @contextmanager
 def ssh_session(
     host: str,
@@ -65,6 +98,67 @@ def ssh_session(
     finally:
         client.close()
 
+def get_ssh_client(
+    host: str,
+    user: str,
+    port: int = 22,
+    password: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 10,
+    accept_new_hostkey: bool = False,
+) -> paramiko.SSHClient:
+    """Retrieves an active SSH client from the pool or creates a new one."""
+    pool_key = f"{user}@{host}:{port}"
+    
+    with pool_lock:
+        # 1. Check if we already have a connection
+        if pool_key in SSH_POOL:
+            pool_data = SSH_POOL[pool_key]
+            client = pool_data["client"]
+            transport = client.get_transport()
+            
+            # Check if connection is still alive
+            if transport is not None and transport.is_active():
+                try:
+                    # Ping the server
+                    transport.send_ignore()
+                    # SUCCESS: Update the "last used" timestamp so the janitor leaves it alone
+                    pool_data["last_used"] = time.time()
+                    return client
+                except EOFError:
+                    pass 
+            
+            # If dead, clean it up before creating a new one
+            client.close()
+            del SSH_POOL[pool_key]
+
+        # 2. Create a new connection
+        client = paramiko.SSHClient()
+        client.load_system_host_keys()
+        client.set_missing_host_key_policy(
+            paramiko.AutoAddPolicy() if accept_new_hostkey else paramiko.RejectPolicy()
+        )
+
+        client.connect(
+            hostname=host,
+            port=port,
+            username=user,
+            password=password,
+            key_filename=key_path,
+            timeout=timeout,
+            banner_timeout=timeout,
+            auth_timeout=timeout,
+            look_for_keys=True,
+            allow_agent=True,
+        )
+        
+        # 3. Save to pool WITH the current timestamp
+        SSH_POOL[pool_key] = {
+            "client": client,
+            "last_used": time.time()
+        }
+        return client
+
 def _run_cmd(client: paramiko.SSHClient, cmd: str, timeout: int = 20) -> Dict[str, Any]:
     stdin, stdout, stderr = client.exec_command(cmd, timeout=timeout)
     return {
@@ -90,10 +184,12 @@ def run_ssh_command(
     """Helper to run an SSH command and capture generalized return payload/errors."""
     collected_at = datetime.now(timezone.utc).isoformat()
     try:
-        with ssh_session(
+        #with ssh_session(
+        #) as client
+        client = get_ssh_client(
             host, user, port, password, key_path, timeout, accept_new_hostkey
-        ) as client:
-            result = _run_cmd(client, cmd_str, timeout=timeout)
+        )
+        result = _run_cmd(client, cmd_str, timeout=timeout)
         return {
             "ok": result["exit_code"] in success_exit_codes,
             "host": host,
@@ -296,16 +392,12 @@ def get_top(
 
 if __name__ == "__main__":
     cfg = load_config()
-    transport_type = cfg.get("transport", "streamable-http")   
-    if transport_type == "streamable-http":
-        # Note: FastMCP run args for http might vary by version; 
-        # usually it's passed as host/port for the underlying Starlette/Uvicorn app.
-        print(f"Starting MCP server on http://{cfg['host']}:{cfg['port']}")
-        host = cfg["host"]
-        port = int(cfg["port"])
-        #official one
-        #mcp.run(transport="streamable-http")
-        mcp.run(transport="sse", host=host, port=port)
+    transport_type = cfg.get("transport", "sse")
+    host = cfg["host"]
+    port = int(cfg["port"])
+    if transport_type in ("sse", "streamable-http"):
+        print(f"Starting MCP server [{transport_type}] on http://{host}:{port}")
+        mcp.run(transport=transport_type, host=host, port=port)
     else:
         # Fallback to standard I/O for CLI/Desktop clients
         mcp.run(transport="stdio")
