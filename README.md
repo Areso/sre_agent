@@ -22,3 +22,6 @@ For get_top, using top -b -n 1 -c is a solid choice to get a single text snapsho
 7. re-do to one command ?
 
 using the available tools, check whether the remote server fr1.areso.pro is Okay or not. use "root" user and /Users/areso/.ssh/id_rsa_private key to login to remote
+
+8. ps aux --sort=-%cpu | head -10
+9. ps aux --sort=-%mem | head -10
