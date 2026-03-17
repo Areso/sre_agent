@@ -16,6 +16,7 @@ def load_config():
         "default_ssh_key": "~/.ssh/id_rsa_private",
         "log_prompts": "false",
         "log_responses": "false",
+        "log_tools": "false"
     }
     if os.path.exists("agent_config.ini"):
         config.read("agent_config.ini")
