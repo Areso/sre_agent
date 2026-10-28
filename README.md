@@ -1,8 +1,5 @@
 # Just to try it out
-python agent.py \
-  --host 127.0.0.1 \
-  --user areso \
-  --key /Users/areso/.ssh/id_rsa
+python agent.py
 
 1.  agent.py fails, if model doesn't support tools. 
 2. it doesn't exit anyhow but with Ctrl+C (keyboard interrupt)

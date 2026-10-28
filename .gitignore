@@ -1,2 +1,3 @@
 .venv/
 safe-ssh-mcp.log
+*.log
