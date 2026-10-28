@@ -11,30 +11,46 @@ from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from mcp.client.session import ClientSession
 
-def load_config():
+REQUIRED_KEYS = [
+    "mcp_transport", "ollama_model",
+    "default_ssh_user", "default_ssh_key",
+    "log_prompts", "log_responses", "log_tools",
+]
+
+def load_config(path="agent_config.ini"):
+    """Load settings from the ini file. It is the only source of truth: missing keys are an error."""
     config = configparser.ConfigParser()
-    settings = {
-        "mcp_transport": "sse",
-        "mcp_server_url": "http://127.0.0.1:4747/sse",
-        "mcp_stdio_command": "python3 ../safe-ssh-server/mcp_ssh.py", # Default fallback
-        "ollama_model": "qwen3-coder:30b",
-        "default_ssh_user": "root",
-        "default_ssh_key": "~/.ssh/id_rsa_private",
-        "log_prompts": "false",
-        "log_responses": "false",
-        "log_tools": "false"
-    }
-    if os.path.exists("agent_config.ini"):
-        config.read("agent_config.ini")
-        if "agent" in config:
-            settings.update(dict(config.items("agent")))
-            
-    settings["default_ssh_key"] = os.path.expanduser(settings["default_ssh_key"])
-    settings["log_prompts"] = settings["log_prompts"].lower() in ("true", "1", "yes")
-    settings["log_responses"] = settings["log_responses"].lower() in ("true", "1", "yes")
-    settings["log_tools"] = settings["log_tools"].lower() in ("true", "1", "yes")
-    settings["mcp_transport"] = settings["mcp_transport"].lower()
-    return settings
+    if not config.read(path):
+        raise SystemExit(f"Config file not found: {path}")
+    if "agent" not in config:
+        raise SystemExit(f"Missing [agent] section in {path}")
+    agent = config["agent"]
+
+    missing = [k for k in REQUIRED_KEYS if k not in agent]
+    transport = agent.get("mcp_transport", "").lower()
+    if transport == "sse" and "mcp_server_url" not in agent:
+        missing.append("mcp_server_url")
+    elif transport == "stdio" and "mcp_stdio_command" not in agent:
+        missing.append("mcp_stdio_command")
+    elif transport and transport not in ("sse", "stdio"):
+        raise SystemExit(f"mcp_transport must be 'sse' or 'stdio', got {transport!r}")
+    if missing:
+        raise SystemExit(f"Missing keys in {path}: {', '.join(missing)}")
+
+    try:
+        return {
+            "mcp_transport":     transport,
+            "mcp_server_url":    agent.get("mcp_server_url"),
+            "mcp_stdio_command": agent.get("mcp_stdio_command"),
+            "ollama_model":      agent["ollama_model"],
+            "default_ssh_user":  agent["default_ssh_user"],
+            "default_ssh_key":   os.path.expanduser(agent["default_ssh_key"]),
+            "log_prompts":       agent.getboolean("log_prompts"),
+            "log_responses":     agent.getboolean("log_responses"),
+            "log_tools":         agent.getboolean("log_tools"),
+        }
+    except ValueError as e:
+        raise SystemExit(f"Invalid value in {path}: {e}")
 
 _cfg = load_config()
 MCP_TRANSPORT    = _cfg["mcp_transport"]
