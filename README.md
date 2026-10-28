@@ -1,5 +1,5 @@
 # Just to try it out
-python agent_direct.py \
+python agent.py \
   --host 127.0.0.1 \
   --user areso \
   --key /Users/areso/.ssh/id_rsa
