@@ -105,7 +105,7 @@ async def get_mcp_streams():
     elif MCP_TRANSPORT == "stdio":
         print(f"🚀 Launching via STDIO: {MCP_STDIO_COMMAND}")
         # shlex safely splits the command string into a list for subprocess
-        cmd_parts = shlex.split(MCP_STDIO_COMMAND)
+        cmd_parts = [os.path.expanduser(p) for p in shlex.split(MCP_STDIO_COMMAND)].
         server_params = StdioServerParameters(
             command=cmd_parts[0],
             args=cmd_parts[1:],
