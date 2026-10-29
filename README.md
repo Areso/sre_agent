@@ -1,26 +1,36 @@
-# Just to try it out
-`python agent.py`  
-or
-`uv run agent.py`  
+# SRE agent
 
-1.  agent.py fails, if model doesn't support tools. 
-2. it doesn't exit anyhow but with Ctrl+C (keyboard interrupt)
-3. think about combining agent and agent_direct.cy and may be move some (common) dependecies out
-4. expend mcp_ssh.py with new methods
+Interactive agent: a local Ollama model diagnoses Linux servers over SSH using the
+[safe-ssh-mcp](https://github.com/Areso/safe-ssh-mcp) read-only tools.
 
-## ideas for mcp
-1. add htop (if exists)
-2. add var/log (cat?)
-3. add ps , docker ps
-5. a calculator (bc, bc -l)
-6. 
+## Requirements
+- [uv](https://docs.astral.sh/uv/) (also provides `uvx`, used to launch the MCP server)
+- Ollama running locally, with a model that supports tool calling
+- SSH key access to the target hosts; each host must already be in `~/.ssh/known_hosts`
+
+## Run
+```bash
+uv sync
+uv run agent.py
 ```
-"Top" Command Quirks 
-For get_top, using top -b -n 1 -c is a solid choice to get a single text snapshot. However, be aware that the first iteration of top often shows inaccurate CPU usage percentages (it shows the average since boot, not the current snapshot). A common trick in scripting is to run top -b -n 2 -d 0.5 and only capture the second iteration, though that's harder to parse. Alternatively, running ps aux --sort=-%cpu | head -n 20 is sometimes much more reliable and easier for the LLM to read than the complex visual formatting of top
-```
-7. re-do to one command ?
+Then ask, e.g. `check whether fr1.areso.pro is okay: CPU, load, disk, failed units`.
+Quit with `exit`, Ctrl+C or Ctrl+D.
 
-using the available tools, check whether the remote server fr1.areso.pro is Okay or not. use "root" user and /Users/areso/.ssh/id_rsa_private key to login to remote
+On startup the agent checks that Ollama is reachable and that the configured model
+exists and supports tool calling (and thinking, if enabled), and exits with a clear
+message otherwise.
 
-8. ps aux --sort=-%cpu | head -10
-9. ps aux --sort=-%mem | head -10
+## Configuration
+Everything lives in `agent_config.ini`. Every key is required, except that only the
+selected transport needs its own setting (`mcp_stdio_command` or `mcp_server_url`).
+- `mcp_transport`: `stdio` (launch the server) or `sse` (connect to a running one)
+- `mcp_stdio_command`: how to launch the MCP server (pinned PyPI version, or a local checkout for development)
+- `mcp_server_url`: server URL, used with `sse`
+- `ollama_model`, `ollama_think`: model and whether it reasons before answering
+- `default_ssh_user`, `default_ssh_key`: used when the model doesn't specify them
+- `log_prompts`, `log_responses`, `log_tools`: write requests and responses to `prompts/`
+
+If the SSH key has a passphrase, export `SSH_KEY_PASSPHRASE` before starting.
+
+## TODO
+- Migrate to `mcp` 2.x (`Tool.inputSchema` → `Tool.input_schema`).

@@ -4,6 +4,7 @@ import json
 import ollama
 import os
 import shlex
+import sys
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -134,8 +135,64 @@ async def get_mcp_streams():
     else:
         raise ValueError(f"Unknown mcp_transport in config: {MCP_TRANSPORT}")
 
+async def ainput(prompt: str) -> str:
+    """input() that waits on the event loop instead of blocking it, so Ctrl+C can cancel it."""
+    print(prompt, end="", flush=True)
+    loop = asyncio.get_running_loop()
+    line_ready = loop.create_future()
+
+    def on_stdin_readable():
+        # Called by the event loop when the user has pressed Enter (or Ctrl+D).
+        # The future may already be finished if Ctrl+C cancelled it; don't set it twice.
+        if line_ready.done():
+            return
+        line_ready.set_result(sys.stdin.readline())
+
+    stdin_fd = sys.stdin.fileno()
+    loop.add_reader(stdin_fd, on_stdin_readable)
+    try:
+        line = await line_ready
+    finally:
+        loop.remove_reader(stdin_fd)
+    if not line:  # Ctrl+D
+        raise EOFError
+    return line.rstrip("\n")
+
+async def check_model(client: ollama.AsyncClient) -> None:
+    """Exit with a clear message if the configured model is missing or can't do what the agent needs."""
+    try:
+        info = await client.show(OLLAMA_MODEL)
+    except ConnectionError as e:
+        raise SystemExit(str(e))
+    except ollama.ResponseError as e:
+        if e.status_code == 404:
+            raise SystemExit(
+                f"Model '{OLLAMA_MODEL}' is not available in Ollama. "
+                f"Pull it with 'ollama pull {OLLAMA_MODEL}' or change ollama_model in agent_config.ini."
+            )
+        raise SystemExit(f"Ollama failed to describe model '{OLLAMA_MODEL}': {e.error}")
+
+    capabilities = info.capabilities
+    if capabilities is None:
+        # Very old Ollama servers don't report capabilities; let the first request decide.
+        print(f"Warning: Ollama didn't report capabilities for '{OLLAMA_MODEL}'; skipping the tool support check.")
+        return
+    if "tools" not in capabilities:
+        raise SystemExit(
+            f"Model '{OLLAMA_MODEL}' doesn't support tool calling (capabilities: {', '.join(capabilities)}). "
+            "Change ollama_model in agent_config.ini."
+        )
+    if OLLAMA_THINK and "thinking" not in capabilities:
+        raise SystemExit(
+            f"Model '{OLLAMA_MODEL}' doesn't support thinking, but ollama_think = true. "
+            "Set ollama_think = false in agent_config.ini."
+        )
+
 async def run_agent():
-    # Use our new context manager here
+    # Check the model before launching the MCP server, so a bad config fails fast
+    ollama_client = ollama.AsyncClient()
+    await check_model(ollama_client)
+
     async with get_mcp_streams() as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
@@ -163,9 +220,14 @@ async def run_agent():
             messages.append({'role': 'system', 'content': system_prompt})
 
             print("\nSRE Agent Ready! (Using Key: " + os.path.basename(DEFAULT_SSH_KEY) + ")")
+            print("Type 'exit', or press Ctrl+C / Ctrl+D to quit.")
 
             while True:
-                user_input = input("\nYou: ")
+                try:
+                    user_input = await ainput("\nYou: ")
+                except EOFError:
+                    print()
+                    break
                 if user_input.lower() in ["quit", "exit"]:
                     break
                 messages.append({'role': 'user', 'content': user_input})
@@ -173,7 +235,7 @@ async def run_agent():
                 while True:
                     print("   (Thinking...)")
                     _log_prompt("chat", messages)
-                    response = ollama.chat(
+                    response = await ollama_client.chat(
                         model=OLLAMA_MODEL,
                         messages=messages,
                         tools=ollama_tools,
@@ -211,4 +273,8 @@ async def run_agent():
                         messages.append({'role': 'tool', 'content': tool_output, 'tool_name': func_name})
 
 if __name__ == "__main__":
-    asyncio.run(run_agent())
+    try:
+        asyncio.run(run_agent())
+    except KeyboardInterrupt:
+        # asyncio.run cancels run_agent on Ctrl+C, which closes the MCP session and server first
+        print("\nBye.")
