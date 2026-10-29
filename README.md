@@ -27,17 +27,17 @@ The model picks the tools itself; the agent fills in the SSH user and key from t
 $ uv run agent.py
 🚀 Launching via STDIO: uvx safe-ssh-mcp@0.1.15 --transport stdio
 
-SRE Agent Ready! (Using Key: id_ed25519)
+SRE Agent Ready! (Using Key: id_rsa)
 Type 'exit', or press Ctrl+C / Ctrl+D to quit.
 
 You: check CPU consumption and load average on server.example.com
    (Thinking...)
 ====Calling Tool: get_ps_aux_top_cpu_consumers
-      Host: server.example.com | User: root | Key: ...id_ed25519
+      Host: server.example.com | User: root | Key: ...ssh/id_rsa
 ====Calling Tool: get_top
-      Host: server.example.com | User: root | Key: ...id_ed25519
+      Host: server.example.com | User: root | Key: ...ssh/id_rsa
 ====Calling Tool: get_uptime
-      Host: server.example.com | User: root | Key: ...id_ed25519
+      Host: server.example.com | User: root | Key: ...ssh/id_rsa
    (Thinking...)
 ```
 
