@@ -1,5 +1,7 @@
 # Just to try it out
-python agent.py
+`python agent.py`  
+or
+`uv run agent.py`  
 
 1.  agent.py fails, if model doesn't support tools. 
 2. it doesn't exit anyhow but with Ctrl+C (keyboard interrupt)

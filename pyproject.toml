@@ -1,0 +1,11 @@
+[project]
+name = "sre-agent"
+version = "0.1.0"
+description = "Interactive SRE agent: a local Ollama model diagnosing servers through the safe-ssh-mcp tools"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # mcp 2.x renamed Tool.inputSchema to Tool.input_schema; agent.py uses the 1.x name
+    "mcp>=1.26,<2",
+    "ollama>=0.6.2,<0.7",
+]
