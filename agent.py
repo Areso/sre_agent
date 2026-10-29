@@ -66,6 +66,12 @@ LOG_PROMPTS      = _cfg["log_prompts"]
 LOG_RESPONSES    = _cfg["log_responses"]
 LOG_TOOLS        = _cfg["log_tools"]
 
+def _json_default(obj):
+    """json.dump fallback: Ollama's pydantic objects (e.g. assistant messages) become dicts, anything else a string."""
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(exclude_none=True)
+    return str(obj)
+
 def _log_prompt(action: str, prompt) -> None:
     """Write the outgoing messages list to prompts/prompt_<timestamp>.json."""
     if not LOG_PROMPTS:
@@ -74,7 +80,7 @@ def _log_prompt(action: str, prompt) -> None:
         os.makedirs("prompts", exist_ok=True)
         iso_time = datetime.now().isoformat().replace(":", "-").replace(".", "-")
         with open(os.path.join("prompts", f"prompt_{iso_time}.json"), "w") as f:
-            json.dump({"action": action, "prompt": prompt}, f, indent=4, default=str)
+            json.dump({"action": action, "prompt": prompt}, f, indent=4, default=_json_default)
     except Exception:
         pass
 
@@ -92,7 +98,7 @@ def _log_response(action: str, response) -> None:
         else:
             safe = str(response)
         with open(os.path.join("prompts", f"response_{iso_time}.json"), "w") as f:
-            json.dump({"action": action, "response": safe}, f, indent=4, default=str)
+            json.dump({"action": action, "response": safe}, f, indent=4, default=_json_default)
     except Exception as e:
         print(f"Failed to log response: {e}")
 
@@ -110,7 +116,7 @@ def _log_tools(tools) -> None:
         else:
             safe = str(tools)
         with open(os.path.join("prompts", f"tools_{iso_time}.json"), "w") as f:
-            json.dump({"tools": safe}, f, indent=4, default=str)
+            json.dump({"tools": safe}, f, indent=4, default=_json_default)
     except Exception as e:
         print(f"Failed to log tools: {e}")
 

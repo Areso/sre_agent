@@ -76,6 +76,12 @@ The answer is printed as Markdown; rendered, it looks like this:
 >
 > Would you like me to look deeper into that process or check its logs?
 
+This run took about 3 minutes from question to answer with `qwen3.8:27b-mlx` on an
+M1 Max (64 GB), mostly spent on the model reading its input (tool definitions plus
+the full `top` output, ~10k tokens).  
+Replaying the same session with the
+**mixture-of-experts** `qwen3.6:35b-a3b` took about 45 seconds.
+
 ## Configuration
 Everything lives in `agent_config.ini`. Every key is required, except that only the
 selected transport needs its own setting (`mcp_stdio_command` or `mcp_server_url`).
