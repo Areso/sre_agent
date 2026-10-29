@@ -12,7 +12,7 @@ from mcp.client.stdio import stdio_client, StdioServerParameters
 from mcp.client.session import ClientSession
 
 REQUIRED_KEYS = [
-    "mcp_transport", "ollama_model",
+    "mcp_transport", "ollama_model", "ollama_think",
     "default_ssh_user", "default_ssh_key",
     "log_prompts", "log_responses", "log_tools",
 ]
@@ -43,6 +43,7 @@ def load_config(path="agent_config.ini"):
             "mcp_server_url":    agent.get("mcp_server_url"),
             "mcp_stdio_command": agent.get("mcp_stdio_command"),
             "ollama_model":      agent["ollama_model"],
+            "ollama_think":      agent.getboolean("ollama_think"),
             "default_ssh_user":  agent["default_ssh_user"],
             "default_ssh_key":   os.path.expanduser(agent["default_ssh_key"]),
             "log_prompts":       agent.getboolean("log_prompts"),
@@ -57,6 +58,7 @@ MCP_TRANSPORT    = _cfg["mcp_transport"]
 MCP_SERVER_URL   = _cfg["mcp_server_url"]
 MCP_STDIO_COMMAND= _cfg["mcp_stdio_command"]
 OLLAMA_MODEL     = _cfg["ollama_model"]
+OLLAMA_THINK     = _cfg["ollama_think"]
 DEFAULT_SSH_USER = _cfg["default_ssh_user"]
 DEFAULT_SSH_KEY  = _cfg["default_ssh_key"]
 LOG_PROMPTS      = _cfg["log_prompts"]
@@ -175,6 +177,7 @@ async def run_agent():
                         model=OLLAMA_MODEL,
                         messages=messages,
                         tools=ollama_tools,
+                        think=OLLAMA_THINK,
                     )
                     _log_response("chat", response)
                     messages.append(response['message'])
